@@ -50,6 +50,11 @@ public class BatteryLogAdapter extends RecyclerView.Adapter<BatteryLogAdapter.Vi
         notifyDataSetChanged();
     }
 
+    public void clearData() {
+        logs.clear();
+        notifyDataSetChanged();
+    }
+
     class ViewHolder extends RecyclerView.ViewHolder {
         TextView tvDateTime, tvLevel, tvTemp, tvVoltage, tvStatus;
 

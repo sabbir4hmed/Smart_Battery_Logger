@@ -1,7 +1,11 @@
 package com.sabbir.smartbatterylogger.utils;
 
+import static android.content.ContentValues.TAG;
+
 import android.content.Context;
 import android.os.Build;
+import android.os.Environment;
+import android.util.Log;
 
 import com.sabbir.smartbatterylogger.model.BatteryLog;
 
@@ -68,23 +72,13 @@ public class FileManager {
         return logs;
     }
 
-    public File exportToCSV() {
-        File directory = new File(context.getExternalFilesDir(null), CSV_DIRECTORY);
-        if (!directory.exists()) {
-            directory.mkdirs();
-        }
-
-        String deviceName = Build.MODEL.replaceAll("\\s+", "_");
-        String timestamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(new Date());
-        String fileName = String.format("%s_%s.csv", deviceName, timestamp);
-        File file = new File(directory, fileName);
-
+    public boolean exportToCSV(File exportFile) {
         try {
-            FileWriter writer = new FileWriter(file);
+            FileWriter writer = new FileWriter(exportFile);
             writer.append("Date,Time,Battery Level,Temperature,Voltage,Status,Health\n");
 
             List<BatteryLog> logs = readLogs();
-            SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd,hh:mm:ss a", Locale.US);
+            SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd,HH:mm:ss", Locale.US);
 
             for (BatteryLog log : logs) {
                 String date = dateFormat.format(new Date(log.getTimestamp()));
@@ -96,11 +90,16 @@ public class FileManager {
                         log.getStatus(),
                         log.getHealth()));
             }
+            writer.flush();
             writer.close();
-            return file;
+            return true;
         } catch (IOException e) {
-            e.printStackTrace();
-            return null;
+            Log.e(TAG, "Error exporting to CSV", e);
+            return false;
         }
+    }
+
+    public void clearLogs() {
+        context.deleteFile(LOG_FILE);
     }
 }
