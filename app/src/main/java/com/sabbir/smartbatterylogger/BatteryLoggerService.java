@@ -93,7 +93,7 @@ public class BatteryLoggerService extends Service {
         @SuppressLint("DefaultLocale") String expandedText = String.format("Battery Level: %d%%\nTemperature: %.1f°C\nVoltage: %dmV\nStatus: %s\nHealth: %s", batteryLog.getLevel(), batteryLog.getTemperature(), batteryLog.getVoltage(), batteryLog.getStatus(), batteryLog.getHealth());
 
         NotificationCompat.Builder builder = new NotificationCompat.Builder(this, CHANNEL_ID)
-                .setContentTitle("Super Battery Logger")
+                .setContentTitle("Battery Monitor Running")
                 .setContentText(statusBarText)
                 .setStyle(new NotificationCompat.BigTextStyle().bigText(expandedText))
                 .setSmallIcon(R.drawable.ic_battery)

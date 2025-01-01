@@ -16,6 +16,7 @@ import android.widget.Button;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
@@ -59,10 +60,13 @@ public class DashboardActivity extends AppCompatActivity {
 
     private boolean isServiceRunning = false;
 
+    private static final int NOTIFICATION_PERMISSION_REQUEST_CODE = 100;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_dashboard);
+
 
         fileManager = new FileManager(this);
         initializeViews();
@@ -71,8 +75,50 @@ public class DashboardActivity extends AppCompatActivity {
         setupButtons();
         checkServiceStatus();
         handler = new Handler();
-        startPeriodicUpdate();
-        startStatusUpdates();
+        // Only start updates if service is running
+        if (isServiceRunning) {
+            startPeriodicUpdate();
+            startStatusUpdates();
+        }
+
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                ActivityCompat.requestPermissions(this,
+                        new String[]{android.Manifest.permission.POST_NOTIFICATIONS},
+                        NOTIFICATION_PERMISSION_REQUEST_CODE);
+            }
+        }
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults, int deviceId) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults, deviceId);
+
+        if (requestCode == NOTIFICATION_PERMISSION_REQUEST_CODE) {
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                // Permission granted, start your service
+                startService();
+            } else {
+                // Permission denied
+                Toast.makeText(this, "Notification permission required for battery monitoring", Toast.LENGTH_LONG).show();
+            }
+        }
+
+        if (requestCode == PERMISSION_REQUEST_CODE) {
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                // Permission granted, proceed with export
+                if (exportData()) {
+                    exportChartImage();
+                    clearAllData();
+                    isServiceRunning = false;
+                    btnExport.setEnabled(false);
+                    btnStopService.setText("Start Service");
+                }
+            } else {
+                Toast.makeText(this, "Storage permission needed to export data", Toast.LENGTH_LONG).show();
+            }
+        }
     }
 
     private void checkServiceStatus() {
@@ -83,8 +129,12 @@ public class DashboardActivity extends AppCompatActivity {
             updateData();
         } else {
             btnStopService.setText("Start Service");
-            btnExport.setEnabled(false);
-            clearAllData();
+            // Enable export button if there's data to export
+            List<BatteryLog> logs = fileManager.readLogs();
+            btnExport.setEnabled(!logs.isEmpty());
+            if (logs.isEmpty()) {
+                clearAllData();
+            }
         }
     }
 
@@ -123,6 +173,10 @@ public class DashboardActivity extends AppCompatActivity {
                 btnStopService.setText("Stop Service");
                 btnExport.setEnabled(false);
                 isServiceRunning = true;
+                // Immediately update data when service starts
+                updateData();
+                // Start periodic updates
+                startPeriodicUpdate();
             }
         });
 
@@ -140,12 +194,24 @@ public class DashboardActivity extends AppCompatActivity {
     private void startService() {
         Intent serviceIntent = new Intent(this, BatteryLoggerService.class);
         startService(serviceIntent);
+
+        // Add small delay to allow first battery reading
+        new Handler().postDelayed(() -> {
+            updateData();
+            startPeriodicUpdate();
+            startStatusUpdates();
+        }, 1000); // 1-second delay
+
         Toast.makeText(this, "Battery logging service started", Toast.LENGTH_SHORT).show();
     }
 
     private void stopBatteryService() {
         Intent serviceIntent = new Intent(this, BatteryLoggerService.class);
         stopService(serviceIntent);
+        isServiceRunning = false;
+        // Enable export button if there's data to export
+        List<BatteryLog> logs = fileManager.readLogs();
+        btnExport.setEnabled(!logs.isEmpty());
         Toast.makeText(this, "Battery logging service stopped", Toast.LENGTH_SHORT).show();
     }
 
@@ -158,7 +224,7 @@ public class DashboardActivity extends AppCompatActivity {
         tvCurrentVoltage.setText("");
         tvCurrentHealth.setText("");*/
         fileManager.clearLogs();
-        Toast.makeText(this, "Data exported and cleared successfully", Toast.LENGTH_SHORT).show();
+        //Toast.makeText(this, "Data exported and cleared successfully", Toast.LENGTH_SHORT).show();
     }
 
     private void setupRecyclerView() {
@@ -233,16 +299,21 @@ public class DashboardActivity extends AppCompatActivity {
     }
 
     private boolean exportData() {
-        if (checkStoragePermission()) {
-            performExport();
-            return true;
-        } else {
-            requestStoragePermission();
+        // Check if we have permission
+        if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.WRITE_EXTERNAL_STORAGE)
+                != PackageManager.PERMISSION_GRANTED) {
+            // Request permission if we don't have it
+            ActivityCompat.requestPermissions(this,
+                    new String[]{android.Manifest.permission.WRITE_EXTERNAL_STORAGE},
+                    PERMISSION_REQUEST_CODE);
             return false;
+        } else {
+            // We have permission, proceed with export
+            return performExport();
         }
     }
 
-    private void performExport() {
+    private boolean performExport() {
         String folderName = "Battery Logger";
         String deviceName = Build.MODEL.replaceAll("\\s+", "_");
         String timestamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(new Date());
@@ -259,6 +330,7 @@ public class DashboardActivity extends AppCompatActivity {
         } else {
             Toast.makeText(this, "Export failed", Toast.LENGTH_SHORT).show();
         }
+        return true;
     }
 
     private void startStatusUpdates() {
@@ -285,11 +357,16 @@ public class DashboardActivity extends AppCompatActivity {
     }
 
     private void startPeriodicUpdate() {
+        // Remove any existing callbacks first
+        handler.removeCallbacksAndMessages(null);
+
         handler.postDelayed(new Runnable() {
             @Override
             public void run() {
-                updateData();
-                handler.postDelayed(this, UPDATE_INTERVAL);
+                if (isServiceRunning) {
+                    updateData();
+                    handler.postDelayed(this, UPDATE_INTERVAL);
+                }
             }
         }, UPDATE_INTERVAL);
     }
@@ -299,6 +376,14 @@ public class DashboardActivity extends AppCompatActivity {
         adapter.updateLogs(logs);
         updateChart();
         updateCurrentStatus();
+
+        // Force UI refresh
+        if (chart != null) {
+            chart.invalidate();
+        }
+        if (adapter != null) {
+            adapter.notifyDataSetChanged();
+        }
     }
 
     @Override
