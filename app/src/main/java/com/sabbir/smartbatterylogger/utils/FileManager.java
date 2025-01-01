@@ -75,15 +75,27 @@ public class FileManager {
     public boolean exportToCSV(File exportFile) {
         try {
             FileWriter writer = new FileWriter(exportFile);
+
+            // Add device information header
+            writer.append("Device Model: " + Build.MODEL + "\n");
+            writer.append("Build Number: " + Build.DISPLAY + "\n");
+            writer.append("Android Version: " + Build.VERSION.RELEASE + "\n\n");
+
+            // CSV headers
             writer.append("Date,Time,Battery Level,Temperature,Voltage,Status,Health\n");
 
             List<BatteryLog> logs = readLogs();
-            SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd,HH:mm:ss", Locale.US);
+            SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd", Locale.US);
+            SimpleDateFormat timeFormat = new SimpleDateFormat("hh:mm:ss a", Locale.US);
 
             for (BatteryLog log : logs) {
-                String date = dateFormat.format(new Date(log.getTimestamp()));
-                writer.append(String.format(Locale.US, "%s,%d,%.1f,%d,%s,%s\n",
+                Date logDate = new Date(log.getTimestamp());
+                String date = dateFormat.format(logDate);
+                String time = timeFormat.format(logDate);
+
+                writer.append(String.format(Locale.US, "%s,%s,%d,%.1f,%d,%s,%s\n",
                         date,
+                        time,
                         log.getLevel(),
                         log.getTemperature(),
                         log.getVoltage(),

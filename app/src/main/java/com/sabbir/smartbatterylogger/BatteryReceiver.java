@@ -8,7 +8,7 @@ import android.os.BatteryManager;
 import com.sabbir.smartbatterylogger.model.BatteryLog;
 import com.sabbir.smartbatterylogger.utils.FileManager;
 
-public class BatteryReceiver extends BroadcastReceiver {
+public abstract class BatteryReceiver extends BroadcastReceiver {
     private FileManager fileManager;
     private int lastLevel = -1;
 
@@ -63,6 +63,9 @@ public class BatteryReceiver extends BroadcastReceiver {
             default: return "Unknown";
         }
     }
+
+
+    public abstract void onBatteryInfoReceived(BatteryLog batteryLog);
 }
 
 

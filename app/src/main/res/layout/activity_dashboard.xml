@@ -11,6 +11,7 @@
     android:layout_marginBottom="5dp"
     android:fitsSystemWindows="true">
 
+    <!-- Battery Information Title -->
     <TextView
         android:id="@+id/tvBatteryInfoTitle"
         android:layout_width="wrap_content"
@@ -23,55 +24,93 @@
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintStart_toStartOf="parent"/>
 
+    <!-- Current Status Card -->
     <androidx.cardview.widget.CardView
         android:id="@+id/cardCurrentStatus"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="8dp"
-        android:layout_marginBottom="24dp"
+        android:layout_marginBottom="16dp"
         app:cardCornerRadius="8dp"
         app:cardElevation="4dp"
         app:layout_constraintTop_toBottomOf="@id/tvBatteryInfoTitle">
 
-        <LinearLayout
+        <RelativeLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="vertical"
             android:padding="16dp">
 
-            <TextView
-                android:id="@+id/tvCurrentLevel"
-                android:layout_width="wrap_content"
+            <LinearLayout
+                android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:textSize="16sp"
-                android:textColor="@color/black"/>
+                android:orientation="vertical"
+                android:layout_alignParentStart="true"
+                android:layout_toStartOf="@id/circularProgressContainer">
 
-            <TextView
-                android:id="@+id/tvCurrentTemp"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="12dp"
-                android:textSize="16sp"
-                android:textColor="@color/black"/>
+                <TextView
+                    android:id="@+id/tvCurrentLevel"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textSize="16sp"
+                    android:textColor="@color/black"/>
 
-            <TextView
-                android:id="@+id/tvCurrentVoltage"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="12dp"
-                android:textSize="16sp"
-                android:textColor="@color/black"/>
+                <TextView
+                    android:id="@+id/tvCurrentTemp"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:textSize="16sp"
+                    android:textColor="@color/black"/>
 
-            <TextView
-                android:id="@+id/tvCurrentHealth"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="12dp"
-                android:textSize="16sp"
-                android:textColor="@color/black"/>
-        </LinearLayout>
+                <TextView
+                    android:id="@+id/tvCurrentVoltage"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:textSize="16sp"
+                    android:textColor="@color/black"/>
+
+                <TextView
+                    android:id="@+id/tvCurrentHealth"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:textSize="16sp"
+                    android:textColor="@color/black"/>
+            </LinearLayout>
+
+            <FrameLayout
+                android:id="@+id/circularProgressContainer"
+                android:layout_width="100dp"
+                android:layout_height="100dp"
+                android:layout_alignParentEnd="true"
+                android:layout_centerVertical="true">
+
+                <com.mikhaellopez.circularprogressbar.CircularProgressBar
+                    android:id="@+id/circularProgressBar"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    app:cpb_background_progressbar_color="#DDDDDD"
+                    app:cpb_background_progressbar_width="5dp"
+                    app:cpb_progress_direction="to_right"
+                    app:cpb_progressbar_color="#4CAF50"
+                    app:cpb_progressbar_width="10dp"
+                    app:cpb_round_border="true"/>
+
+
+                <TextView
+                    android:id="@+id/tvProgressPercentage"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center"
+                    android:textSize="20sp"
+                    android:textStyle="bold"
+                    android:textColor="@color/black"/>
+            </FrameLayout>
+        </RelativeLayout>
     </androidx.cardview.widget.CardView>
 
+    <!-- Graph Title -->
     <TextView
         android:id="@+id/tvGraphTitle"
         android:layout_width="wrap_content"
@@ -81,20 +120,21 @@
         android:textStyle="bold"
         android:textColor="@color/black"
         android:layout_marginTop="16dp"
-        android:layout_marginBottom="8dp"
         app:layout_constraintTop_toBottomOf="@id/cardCurrentStatus"
         app:layout_constraintStart_toStartOf="parent"/>
 
+    <!-- Line Chart -->
     <com.github.mikephil.charting.charts.LineChart
         android:id="@+id/chartBattery"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_marginTop="8dp"
-        android:layout_marginBottom="24dp"
-        app:layout_constraintBottom_toTopOf="@+id/tvListTitle"
+        android:layout_marginBottom="16dp"
         app:layout_constraintHeight_percent="0.3"
-        app:layout_constraintTop_toBottomOf="@+id/tvGraphTitle" />
+        app:layout_constraintTop_toBottomOf="@id/tvGraphTitle"
+        app:layout_constraintBottom_toTopOf="@id/tvListTitle"/>
 
+    <!-- List Title -->
     <TextView
         android:id="@+id/tvListTitle"
         android:layout_width="wrap_content"
@@ -104,26 +144,27 @@
         android:textStyle="bold"
         android:textColor="@color/black"
         android:layout_marginTop="16dp"
-        android:layout_marginBottom="8dp"
         app:layout_constraintTop_toBottomOf="@id/chartBattery"
         app:layout_constraintStart_toStartOf="parent"/>
 
+    <!-- RecyclerView -->
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/recyclerView"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_marginTop="8dp"
-        android:layout_marginBottom="24dp"
-        app:layout_constraintBottom_toTopOf="@+id/buttonContainer"
-        app:layout_constraintTop_toBottomOf="@+id/tvListTitle" />
+        android:layout_marginBottom="16dp"
+        app:layout_constraintTop_toBottomOf="@id/tvListTitle"
+        app:layout_constraintBottom_toTopOf="@id/buttonContainer"/>
 
+    <!-- Button Container -->
     <LinearLayout
         android:id="@+id/buttonContainer"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
         android:weightSum="2"
-        android:layout_marginTop="24dp"
+        android:layout_marginTop="16dp"
         app:layout_constraintBottom_toBottomOf="parent">
 
         <Button
@@ -133,6 +174,7 @@
             android:layout_weight="1"
             android:layout_marginEnd="8dp"
             android:text="Export Data"
+            android:enabled="false"
             android:background="@drawable/button_background"
             android:textColor="@color/white"/>
 
@@ -142,7 +184,7 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:layout_marginStart="8dp"
-            android:text="Stop Service"
+            android:text="Start Service"
             android:background="@drawable/button_background"
             android:textColor="@color/white"/>
 

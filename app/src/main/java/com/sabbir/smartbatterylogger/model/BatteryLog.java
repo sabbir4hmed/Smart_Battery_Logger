@@ -17,6 +17,8 @@ public class BatteryLog {
         this.health = health;
     }
 
+
+
     // Getters
     public long getTimestamp() { return timestamp; }
     public int getLevel() { return level; }
