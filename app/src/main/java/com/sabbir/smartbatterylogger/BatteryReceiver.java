@@ -20,26 +20,28 @@ public abstract class BatteryReceiver extends BroadcastReceiver {
 
         if (Intent.ACTION_BATTERY_CHANGED.equals(intent.getAction())) {
             int level = intent.getIntExtra(BatteryManager.EXTRA_LEVEL, -1);
+            float temperature = intent.getIntExtra(BatteryManager.EXTRA_TEMPERATURE, -1) / 10f;
+            int voltage = intent.getIntExtra(BatteryManager.EXTRA_VOLTAGE, -1);
+            int status = intent.getIntExtra(BatteryManager.EXTRA_STATUS, -1);
+            int health = intent.getIntExtra(BatteryManager.EXTRA_HEALTH, -1);
 
-            // Only log if battery level has changed
+            BatteryLog log = new BatteryLog(
+                    System.currentTimeMillis(),
+                    level,
+                    temperature,
+                    voltage,
+                    getBatteryStatusString(status),
+                    getBatteryHealthString(health)
+            );
+
+            // Save log only if battery level changed
             if (level != lastLevel) {
                 lastLevel = level;
-                float temperature = intent.getIntExtra(BatteryManager.EXTRA_TEMPERATURE, -1) / 10f;
-                int voltage = intent.getIntExtra(BatteryManager.EXTRA_VOLTAGE, -1);
-                int status = intent.getIntExtra(BatteryManager.EXTRA_STATUS, -1);
-                int health = intent.getIntExtra(BatteryManager.EXTRA_HEALTH, -1);
-
-                BatteryLog log = new BatteryLog(
-                        System.currentTimeMillis(),
-                        level,
-                        temperature,
-                        voltage,
-                        getBatteryStatusString(status),
-                        getBatteryHealthString(health)
-                );
-
                 fileManager.saveLog(log);
             }
+
+            // Always notify for UI updates
+            onBatteryInfoReceived(log);
         }
     }
 
@@ -63,7 +65,6 @@ public abstract class BatteryReceiver extends BroadcastReceiver {
             default: return "Unknown";
         }
     }
-
 
     public abstract void onBatteryInfoReceived(BatteryLog batteryLog);
 }

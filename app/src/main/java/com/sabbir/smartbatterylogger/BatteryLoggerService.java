@@ -1,5 +1,6 @@
 package com.sabbir.smartbatterylogger;
 
+import android.annotation.SuppressLint;
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
@@ -86,17 +87,10 @@ public class BatteryLoggerService extends Service {
         );
 
         // Create status bar text
-        String statusBarText = String.format("%d%% | %.1f°C",
-                batteryLog.getLevel(),
-                batteryLog.getTemperature());
+        @SuppressLint("DefaultLocale") String statusBarText = String.format("%d%% | %.1f°C", batteryLog.getLevel(), batteryLog.getTemperature());
 
         // Create expanded notification text
-        String expandedText = String.format("Battery Level: %d%%\nTemperature: %.1f°C\nVoltage: %dmV\nStatus: %s\nHealth: %s",
-                batteryLog.getLevel(),
-                batteryLog.getTemperature(),
-                batteryLog.getVoltage(),
-                batteryLog.getStatus(),
-                batteryLog.getHealth());
+        @SuppressLint("DefaultLocale") String expandedText = String.format("Battery Level: %d%%\nTemperature: %.1f°C\nVoltage: %dmV\nStatus: %s\nHealth: %s", batteryLog.getLevel(), batteryLog.getTemperature(), batteryLog.getVoltage(), batteryLog.getStatus(), batteryLog.getHealth());
 
         NotificationCompat.Builder builder = new NotificationCompat.Builder(this, CHANNEL_ID)
                 .setContentTitle("Super Battery Logger")
