@@ -108,7 +108,7 @@ public class FileManager {
             writer.append("Android Version: ").append(Build.VERSION.RELEASE).append("\n\n");
 
             // Write CSV headers
-            writer.append("Date,Time,Battery Level,Temperature,Voltage,Status,Health\n");
+            writer.append("Date,Time,Battery Level,Temperature(°C),Voltage(mV),Status,Health\n");
 
             // Get and format all logs
             List<BatteryLog> logs = readLogs();
