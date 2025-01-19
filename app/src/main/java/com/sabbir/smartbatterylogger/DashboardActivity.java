@@ -5,6 +5,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
+import android.graphics.Canvas;
 import android.graphics.Color;
 import android.net.Uri;
 import android.os.Build;
@@ -59,15 +60,20 @@ public class DashboardActivity extends AppCompatActivity {
     private boolean isServiceRunning = false;
     private static final int NOTIFICATION_PERMISSION_REQUEST_CODE = 100;
     private boolean isInitialized = false;
+    private boolean isExportRequested = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_dashboard);
 
+
         if (checkStoragePermission()) {
             initializeComponents();
             isInitialized = true;
+            // Remove any auto-start logic
+            btnStopService.setText("Start Service");
+            isServiceRunning = false;
         } else {
             requestStoragePermission();
         }
@@ -112,9 +118,19 @@ public class DashboardActivity extends AppCompatActivity {
     }
 
     private void setupButtons() {
+        // Export button setup
         btnExport.setEnabled(false);
+        btnExport.setOnClickListener(v -> {
+            isExportRequested = true;
+            if (!checkStoragePermission()) {
+                requestStoragePermission();
+                return;
+            }
+            performExportOperation();
+        });
 
-        // Add this click listener for Start/Stop Service button
+        // Start/Stop Service button setup
+        btnStopService.setEnabled(true);  // Enable the button
         btnStopService.setOnClickListener(v -> {
             if (isServiceRunning) {
                 stopBatteryService();
@@ -122,23 +138,16 @@ public class DashboardActivity extends AppCompatActivity {
                 startService();
             }
         });
+    }
 
-
-        // Your existing export button listener
-        btnExport.setOnClickListener(v -> {
-            if (!checkStoragePermission()) {
-                requestStoragePermission();
-                return;
-            }
-
-            if (performExport()) {
-                exportChartImage();
-                clearAllData();
-                isServiceRunning = false;
-                btnExport.setEnabled(false);
-                btnStopService.setText("Start Service");
-            }
-        });
+    private void performExportOperation() {
+        if (performExport()) {
+            exportChartImage();
+            clearAllData();
+            isServiceRunning = false;
+            btnExport.setEnabled(false);
+            btnStopService.setText("Start Service");
+        }
     }
 
     private void startService() {
@@ -364,17 +373,26 @@ public class DashboardActivity extends AppCompatActivity {
     private void saveChartImage(Bitmap chartBitmap) {
         try {
             String timestamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(new Date());
-            String fileName = "battery_chart_" + timestamp + ".png";
+            String fileName = "battery_chart_" + timestamp + ".jpg";
 
+            // Setup directory
             File picturesDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES);
             File batteryLogsDir = new File(picturesDir, "BatteryLogs");
-            if (!batteryLogsDir.exists()) {
-                batteryLogsDir.mkdirs();
-            }
+            batteryLogsDir.mkdirs();
 
+            // Create a new bitmap with white background
+            Bitmap whiteBackgroundBitmap = Bitmap.createBitmap(chart.getWidth(),
+                    chart.getHeight(),
+                    Bitmap.Config.ARGB_8888);
+            Canvas canvas = new Canvas(whiteBackgroundBitmap);
+            canvas.drawColor(Color.WHITE);
+            chart.draw(canvas);
+
+            // Save the image
             File imageFile = new File(batteryLogsDir, fileName);
             FileOutputStream fos = new FileOutputStream(imageFile);
-            chartBitmap.compress(Bitmap.CompressFormat.PNG, 100, fos);
+            whiteBackgroundBitmap.compress(Bitmap.CompressFormat.JPEG, 100, fos);
+            fos.flush();
             fos.close();
 
             Toast.makeText(this, "Chart exported to Pictures/BatteryLogs/" + fileName,
@@ -384,6 +402,8 @@ public class DashboardActivity extends AppCompatActivity {
                     Toast.LENGTH_SHORT).show();
         }
     }
+
+
 
     // Permission handling methods
     private boolean checkStoragePermission() {
@@ -476,18 +496,15 @@ public class DashboardActivity extends AppCompatActivity {
 
         if (requestCode == PERMISSION_REQUEST_CODE) {
             if (checkStoragePermission()) {
-                // Initialize components if not already initialized
                 if (!isInitialized) {
                     initializeComponents();
                     isInitialized = true;
                 }
-                // Now proceed with export
-                if (performExport()) {
-                    exportChartImage();
-                    clearAllData();
-                    isServiceRunning = false;
-                    btnExport.setEnabled(false);
-                    btnStopService.setText("Start Service");
+
+                // Only perform export if it was explicitly requested
+                if (isExportRequested) {
+                    performExportOperation();
+                    isExportRequested = false;  // Reset the flag
                 }
             } else {
                 Toast.makeText(this, "Storage permission needed to export data", Toast.LENGTH_LONG).show();
