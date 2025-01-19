@@ -56,6 +56,12 @@ public class BatteryLoggerService extends Service {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
+
+        if (intent != null && "FORCE_UPDATE".equals(intent.getAction())) {
+            // Force an immediate battery reading
+            updateBatteryStats();
+        }
+
         BatteryLog initialBatteryLog = new BatteryLog(
                 System.currentTimeMillis(), // timestamp
                 0,                         // level
@@ -72,6 +78,26 @@ public class BatteryLoggerService extends Service {
             startForeground(NOTIFICATION_ID, createNotification(initialBatteryLog));
         }
         return START_STICKY;
+    }
+
+    private void updateBatteryStats() {
+        // Register a receiver temporarily to get immediate battery stats
+        BatteryReceiver tempReceiver = new BatteryReceiver() {
+            @Override
+            public void onBatteryInfoReceived(BatteryLog batteryLog) {
+                // Update notification with new battery info
+                updateNotification(batteryLog);
+                // Unregister the temporary receiver
+                try {
+                    unregisterReceiver(this);
+                } catch (IllegalArgumentException e) {
+                    // Receiver already unregistered
+                }
+            }
+        };
+
+        // Register and request battery update
+        registerReceiver(tempReceiver, new IntentFilter(Intent.ACTION_BATTERY_CHANGED));
     }
 
     private Notification createNotification(BatteryLog batteryLog) {

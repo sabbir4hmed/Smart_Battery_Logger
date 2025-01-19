@@ -49,103 +49,38 @@ public class DashboardActivity extends AppCompatActivity {
     private TextView tvCurrentLevel, tvCurrentTemp, tvCurrentVoltage, tvCurrentHealth;
     private Button btnExport, btnStopService;
     private boolean isServiceStopped = false;
-    private static final int UPDATE_INTERVAL = 60000; // 1 minute
-    private static final int STATUS_UPDATE_INTERVAL = 1000; // 1 second
+    private static final int UPDATE_INTERVAL = 60000;
+    private static final int STATUS_UPDATE_INTERVAL = 1000;
     private Handler statusHandler = new Handler();
     private Runnable statusUpdateRunnable;
     private static final int PERMISSION_REQUEST_CODE = 123;
-
     private CircularProgressBar circularProgressBar;
     private TextView tvProgressPercentage;
-
     private boolean isServiceRunning = false;
-
     private static final int NOTIFICATION_PERMISSION_REQUEST_CODE = 100;
+    private boolean isInitialized = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_dashboard);
 
+        if (checkStoragePermission()) {
+            initializeComponents();
+            isInitialized = true;
+        } else {
+            requestStoragePermission();
+        }
+    }
 
+    private void initializeComponents() {
         fileManager = new FileManager(this);
         initializeViews();
         setupRecyclerView();
         setupChart();
         setupButtons();
-        checkServiceStatus();
         handler = new Handler();
-        // Only start updates if service is running
-        if (isServiceRunning) {
-            startPeriodicUpdate();
-            startStatusUpdates();
-        }
-
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
-                ActivityCompat.requestPermissions(this,
-                        new String[]{android.Manifest.permission.POST_NOTIFICATIONS},
-                        NOTIFICATION_PERMISSION_REQUEST_CODE);
-            }
-        }
-    }
-
-    @Override
-    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults, int deviceId) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults, deviceId);
-
-        if (requestCode == NOTIFICATION_PERMISSION_REQUEST_CODE) {
-            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                // Permission granted, start your service
-                startService();
-            } else {
-                // Permission denied
-                Toast.makeText(this, "Notification permission required for battery monitoring", Toast.LENGTH_LONG).show();
-            }
-        }
-
-        if (requestCode == PERMISSION_REQUEST_CODE) {
-            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                // Permission granted, proceed with export
-                if (exportData()) {
-                    exportChartImage();
-                    clearAllData();
-                    isServiceRunning = false;
-                    btnExport.setEnabled(false);
-                    btnStopService.setText("Start Service");
-                }
-            } else {
-                Toast.makeText(this, "Storage permission needed to export data", Toast.LENGTH_LONG).show();
-            }
-        }
-    }
-
-    private void checkServiceStatus() {
-        isServiceRunning = isServiceRunning(BatteryLoggerService.class);
-        if (isServiceRunning) {
-            btnStopService.setText("Stop Service");
-            btnExport.setEnabled(false);
-            updateData();
-        } else {
-            btnStopService.setText("Start Service");
-            // Enable export button if there's data to export
-            List<BatteryLog> logs = fileManager.readLogs();
-            btnExport.setEnabled(!logs.isEmpty());
-            if (logs.isEmpty()) {
-                clearAllData();
-            }
-        }
-    }
-
-    private boolean isServiceRunning(Class<BatteryLoggerService> batteryLoggerServiceClass) {
-        ActivityManager manager = (ActivityManager) getSystemService(Context.ACTIVITY_SERVICE);
-        for (ActivityManager.RunningServiceInfo service : manager.getRunningServices(Integer.MAX_VALUE)) {
-            if (batteryLoggerServiceClass.getName().equals(service.service.getClassName())) {
-                return true;
-            }
-        }
-        return false;
+        checkNotificationPermission();
     }
 
     private void initializeViews() {
@@ -157,74 +92,6 @@ public class DashboardActivity extends AppCompatActivity {
         btnStopService = findViewById(R.id.btnStopService);
         circularProgressBar = findViewById(R.id.circularProgressBar);
         tvProgressPercentage = findViewById(R.id.tvProgressPercentage);
-    }
-
-    private void setupButtons() {
-        btnExport.setEnabled(false);
-
-        btnStopService.setOnClickListener(v -> {
-            if (isServiceRunning) {
-                stopBatteryService();
-                btnStopService.setText("Start Service");
-                btnExport.setEnabled(true);
-                isServiceRunning = false;
-            } else {
-                startService();
-                btnStopService.setText("Stop Service");
-                btnExport.setEnabled(false);
-                isServiceRunning = true;
-                // Immediately update data when service starts
-                updateData();
-                // Start periodic updates
-                startPeriodicUpdate();
-            }
-        });
-
-        btnExport.setOnClickListener(v -> {
-            if (exportData()) {
-                exportChartImage();
-                clearAllData();
-                isServiceRunning = false;
-                btnExport.setEnabled(false);
-                btnStopService.setText("Start Service");
-            }
-        });
-    }
-
-    private void startService() {
-        Intent serviceIntent = new Intent(this, BatteryLoggerService.class);
-        startService(serviceIntent);
-
-        // Add small delay to allow first battery reading
-        new Handler().postDelayed(() -> {
-            updateData();
-            startPeriodicUpdate();
-            startStatusUpdates();
-        }, 1000); // 1-second delay
-
-        Toast.makeText(this, "Battery logging service started", Toast.LENGTH_SHORT).show();
-    }
-
-    private void stopBatteryService() {
-        Intent serviceIntent = new Intent(this, BatteryLoggerService.class);
-        stopService(serviceIntent);
-        isServiceRunning = false;
-        // Enable export button if there's data to export
-        List<BatteryLog> logs = fileManager.readLogs();
-        btnExport.setEnabled(!logs.isEmpty());
-        Toast.makeText(this, "Battery logging service stopped", Toast.LENGTH_SHORT).show();
-    }
-
-    private void clearAllData() {
-        chart.clear();
-        chart.invalidate();
-        adapter.clearData();
-      /*  tvCurrentLevel.setText("");
-        tvCurrentTemp.setText("");
-        tvCurrentVoltage.setText("");
-        tvCurrentHealth.setText("");*/
-        fileManager.clearLogs();
-        //Toast.makeText(this, "Data exported and cleared successfully", Toast.LENGTH_SHORT).show();
     }
 
     private void setupRecyclerView() {
@@ -244,6 +111,123 @@ public class DashboardActivity extends AppCompatActivity {
         chart.setDrawGridBackground(false);
     }
 
+    private void setupButtons() {
+        btnExport.setEnabled(false);
+
+        // Add this click listener for Start/Stop Service button
+        btnStopService.setOnClickListener(v -> {
+            if (isServiceRunning) {
+                stopBatteryService();
+            } else {
+                startService();
+            }
+        });
+
+
+        // Your existing export button listener
+        btnExport.setOnClickListener(v -> {
+            if (!checkStoragePermission()) {
+                requestStoragePermission();
+                return;
+            }
+
+            if (performExport()) {
+                exportChartImage();
+                clearAllData();
+                isServiceRunning = false;
+                btnExport.setEnabled(false);
+                btnStopService.setText("Start Service");
+            }
+        });
+    }
+
+    private void startService() {
+        Intent serviceIntent = new Intent(this, BatteryLoggerService.class);
+        startService(serviceIntent);
+        isServiceRunning = true;
+        btnStopService.setText("Stop Service");
+        btnExport.setEnabled(false);
+
+        // First immediate update
+        new Handler().postDelayed(() -> {
+            forceInitialDataUpdate();
+        }, 1000); // Initial 1-second delay for first reading
+
+        // Start periodic updates
+        startPeriodicUpdate();
+        startStatusUpdates();
+
+        Toast.makeText(this, "Battery logging service started", Toast.LENGTH_SHORT).show();
+    }
+
+    private void forceInitialDataUpdate() {
+        // Force a data collection in the service
+        Intent updateIntent = new Intent(this, BatteryLoggerService.class);
+        updateIntent.setAction("FORCE_UPDATE");
+        startService(updateIntent);
+
+        // Update UI after a short delay to ensure data is collected
+        new Handler().postDelayed(() -> {
+            List<BatteryLog> logs = fileManager.readLogs();
+            if (!logs.isEmpty()) {
+                // Update RecyclerView
+                adapter.updateLogs(logs);
+                adapter.notifyDataSetChanged();
+
+                // Update Chart
+                updateChart();
+
+                // Update current status
+                updateCurrentStatus();
+
+                // Force chart refresh
+                chart.invalidate();
+            }
+        }, 500); // Half-second delay after forcing update
+    }
+
+    private void stopBatteryService() {
+        Intent serviceIntent = new Intent(this, BatteryLoggerService.class);
+        stopService(serviceIntent);
+        isServiceRunning = false;
+        updateServiceUI();
+        Toast.makeText(this, "Battery logging service stopped", Toast.LENGTH_SHORT).show();
+    }
+
+    private void updateServiceUI() {
+        if (isServiceRunning) {
+            btnStopService.setText("Stop Service");
+            btnExport.setEnabled(false);
+            updateData();
+            startPeriodicUpdate();
+            startStatusUpdates();
+        } else {
+            btnStopService.setText("Start Service");
+            List<BatteryLog> logs = fileManager.readLogs();
+            btnExport.setEnabled(!logs.isEmpty());
+            if (logs.isEmpty()) {
+                clearAllData();
+            }
+        }
+    }
+
+    private void clearAllData() {
+        chart.clear();
+        chart.invalidate();
+        adapter.clearData();
+        fileManager.clearLogs();
+        resetUIElements();
+    }
+
+    private void resetUIElements() {
+        tvCurrentLevel.setText("Battery Level: --");
+        tvCurrentTemp.setText("Temperature: --");
+        tvCurrentVoltage.setText("Voltage: --");
+        tvCurrentHealth.setText("Health: --");
+        circularProgressBar.setProgress(0);
+        tvProgressPercentage.setText("0%");
+    }
+
     private void updateChart() {
         List<BatteryLog> logs = fileManager.readLogs();
         ArrayList<Entry> levelEntries = new ArrayList<>();
@@ -255,6 +239,26 @@ public class DashboardActivity extends AppCompatActivity {
             tempEntries.add(new Entry(i, log.getTemperature()));
         }
 
+        LineDataSet levelDataSet = new LineDataSet(levelEntries, "Battery Level (%)");
+        levelDataSet.setColor(Color.GREEN);
+        levelDataSet.setCircleColor(Color.GREEN);
+        levelDataSet.setDrawValues(true);
+
+        LineDataSet tempDataSet = new LineDataSet(tempEntries, "Temperature (°C)");
+        tempDataSet.setColor(Color.RED);
+        tempDataSet.setCircleColor(Color.RED);
+        tempDataSet.setDrawValues(true);
+
+        ArrayList<ILineDataSet> dataSets = new ArrayList<>();
+        dataSets.add(levelDataSet);
+        dataSets.add(tempDataSet);
+
+        LineData lineData = new LineData(dataSets);
+        chart.setData(lineData);
+        chart.invalidate();
+    }
+
+    private void setupChartDataSets(ArrayList<Entry> levelEntries, ArrayList<Entry> tempEntries) {
         LineDataSet levelDataSet = new LineDataSet(levelEntries, "Battery Level (%)");
         levelDataSet.setColor(Color.GREEN);
         levelDataSet.setCircleColor(Color.GREEN);
@@ -272,67 +276,6 @@ public class DashboardActivity extends AppCompatActivity {
         chart.invalidate();
     }
 
-    private void exportChartImage() {
-        chart.setDrawingCacheEnabled(true);
-        Bitmap chartBitmap = chart.getDrawingCache();
-
-        try {
-            String timestamp = new SimpleDateFormat("yyyyMMdd_hhmmss", Locale.getDefault()).format(new Date());
-            String fileName = "battery_chart_" + timestamp + ".png";
-            File picturesDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES);
-            File batteryLogsDir = new File(picturesDir, "BatteryLogs");
-            if (!batteryLogsDir.exists()) {
-                batteryLogsDir.mkdirs();
-            }
-
-            File imageFile = new File(batteryLogsDir, fileName);
-            FileOutputStream fos = new FileOutputStream(imageFile);
-            chartBitmap.compress(Bitmap.CompressFormat.PNG, 100, fos);
-            fos.close();
-
-            Toast.makeText(this, "Chart exported to Pictures/BatteryLogs/" + fileName, Toast.LENGTH_LONG).show();
-        } catch (Exception e) {
-            Toast.makeText(this, "Failed to export chart: " + e.getMessage(), Toast.LENGTH_SHORT).show();
-        }
-
-        chart.setDrawingCacheEnabled(false);
-    }
-
-    private boolean exportData() {
-        // Check if we have permission
-        if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.WRITE_EXTERNAL_STORAGE)
-                != PackageManager.PERMISSION_GRANTED) {
-            // Request permission if we don't have it
-            ActivityCompat.requestPermissions(this,
-                    new String[]{android.Manifest.permission.WRITE_EXTERNAL_STORAGE},
-                    PERMISSION_REQUEST_CODE);
-            return false;
-        } else {
-            // We have permission, proceed with export
-            return performExport();
-        }
-    }
-
-    private boolean performExport() {
-        String folderName = "Battery Logger";
-        String deviceName = Build.MODEL.replaceAll("\\s+", "_");
-        String timestamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(new Date());
-        String fileName = String.format("%s_%s.csv", deviceName, timestamp);
-
-        File folder = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS), folderName);
-        if (!folder.exists()) {
-            folder.mkdirs();
-        }
-
-        File exportFile = new File(folder, fileName);
-        if (fileManager.exportToCSV(exportFile)) {
-            Toast.makeText(this, "Data exported to Documents/" + folderName + "/" + fileName, Toast.LENGTH_LONG).show();
-        } else {
-            Toast.makeText(this, "Export failed", Toast.LENGTH_SHORT).show();
-        }
-        return true;
-    }
-
     private void startStatusUpdates() {
         statusUpdateRunnable = () -> {
             updateCurrentStatus();
@@ -345,21 +288,23 @@ public class DashboardActivity extends AppCompatActivity {
         List<BatteryLog> logs = fileManager.readLogs();
         if (!logs.isEmpty()) {
             BatteryLog latest = logs.get(logs.size() - 1);
-            int batteryLevel = latest.getLevel();
-            tvCurrentLevel.setText(String.format("Battery Level: %d%%", latest.getLevel()));
-            tvCurrentTemp.setText(String.format("Temperature: %.1f°C", latest.getTemperature()));
-            tvCurrentVoltage.setText(String.format("Voltage: %dmV", latest.getVoltage()));
-            tvCurrentHealth.setText(String.format("Health: %s", latest.getHealth()));
-
-            circularProgressBar.setProgress(batteryLevel);
-            tvProgressPercentage.setText(batteryLevel + "%");
+            updateUIWithLatestData(latest);
         }
     }
 
-    private void startPeriodicUpdate() {
-        // Remove any existing callbacks first
-        handler.removeCallbacksAndMessages(null);
+    private void updateUIWithLatestData(BatteryLog latest) {
+        int batteryLevel = latest.getLevel();
+        tvCurrentLevel.setText(String.format("Battery Level: %d%%", batteryLevel));
+        tvCurrentTemp.setText(String.format("Temperature: %.1f°C", latest.getTemperature()));
+        tvCurrentVoltage.setText(String.format("Voltage: %dmV", latest.getVoltage()));
+        tvCurrentHealth.setText(String.format("Health: %s", latest.getHealth()));
 
+        circularProgressBar.setProgress(batteryLevel);
+        tvProgressPercentage.setText(batteryLevel + "%");
+    }
+
+    private void startPeriodicUpdate() {
+        handler.removeCallbacksAndMessages(null);
         handler.postDelayed(new Runnable() {
             @Override
             public void run() {
@@ -373,46 +318,87 @@ public class DashboardActivity extends AppCompatActivity {
 
     private void updateData() {
         List<BatteryLog> logs = fileManager.readLogs();
-        adapter.updateLogs(logs);
-        updateChart();
-        updateCurrentStatus();
+        if (!logs.isEmpty()) {
+            adapter.updateLogs(logs);
+            updateChart();
+            updateCurrentStatus();
 
-        // Force UI refresh
-        if (chart != null) {
-            chart.invalidate();
-        }
-        if (adapter != null) {
-            adapter.notifyDataSetChanged();
-        }
-    }
-
-    @Override
-    protected void onResume() {
-        super.onResume();
-        updateData();
-        if (isServiceStopped) {
-            btnExport.setEnabled(true);
-            btnStopService.setEnabled(false);
-        } else {
-            btnExport.setEnabled(false);
-            btnStopService.setEnabled(true);
+            // Force UI refresh
+            if (chart != null) {
+                chart.invalidate();
+            }
+            if (adapter != null) {
+                adapter.notifyDataSetChanged();
+            }
         }
     }
 
-    @Override
-    protected void onDestroy() {
-        super.onDestroy();
-        handler.removeCallbacksAndMessages(null);
-        statusHandler.removeCallbacks(statusUpdateRunnable);
+    private boolean performExport() {
+        String timestamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(new Date());
+        String deviceName = Build.MODEL.replaceAll("\\s+", "_");
+        String fileName = String.format("%s_%s.csv", deviceName, timestamp);
+
+        File folder = new File(Environment.getExternalStoragePublicDirectory(
+                Environment.DIRECTORY_DOCUMENTS), "Battery Logger");
+        if (!folder.exists()) {
+            folder.mkdirs();
+        }
+
+        File exportFile = new File(folder, fileName);
+        if (fileManager.exportToCSV(exportFile)) {
+            Toast.makeText(this, "Data exported to Documents/Battery Logger/" + fileName,
+                    Toast.LENGTH_LONG).show();
+            return true;
+        }
+        Toast.makeText(this, "Export failed", Toast.LENGTH_SHORT).show();
+        return false;
     }
 
+    private void exportChartImage() {
+        chart.setDrawingCacheEnabled(true);
+        Bitmap chartBitmap = chart.getDrawingCache();
+        saveChartImage(chartBitmap);
+        chart.setDrawingCacheEnabled(false);
+    }
+
+    private void saveChartImage(Bitmap chartBitmap) {
+        try {
+            String timestamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(new Date());
+            String fileName = "battery_chart_" + timestamp + ".png";
+
+            File picturesDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES);
+            File batteryLogsDir = new File(picturesDir, "BatteryLogs");
+            if (!batteryLogsDir.exists()) {
+                batteryLogsDir.mkdirs();
+            }
+
+            File imageFile = new File(batteryLogsDir, fileName);
+            FileOutputStream fos = new FileOutputStream(imageFile);
+            chartBitmap.compress(Bitmap.CompressFormat.PNG, 100, fos);
+            fos.close();
+
+            Toast.makeText(this, "Chart exported to Pictures/BatteryLogs/" + fileName,
+                    Toast.LENGTH_LONG).show();
+        } catch (Exception e) {
+            Toast.makeText(this, "Failed to export chart: " + e.getMessage(),
+                    Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    // Permission handling methods
+    private boolean checkStoragePermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            return Environment.isExternalStorageManager();
+        }
+        return ContextCompat.checkSelfPermission(this,
+                android.Manifest.permission.WRITE_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED;
+    }
 
     private void requestStoragePermission() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             try {
-                Intent intent = new Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION);
-                intent.addCategory("android.intent.category.DEFAULT");
-                intent.setData(Uri.parse(String.format("package:%s", getApplicationContext().getPackageName())));
+                Intent intent = new Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION)
+                        .setData(Uri.parse("package:" + getPackageName()));
                 startActivityForResult(intent, PERMISSION_REQUEST_CODE);
             } catch (Exception e) {
                 Intent intent = new Intent();
@@ -426,14 +412,99 @@ public class DashboardActivity extends AppCompatActivity {
         }
     }
 
-    private boolean checkStoragePermission() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            return Environment.isExternalStorageManager();
-        } else {
-            int write = ContextCompat.checkSelfPermission(this,
-                    android.Manifest.permission.WRITE_EXTERNAL_STORAGE);
-            return write == PackageManager.PERMISSION_GRANTED;
+    private void checkNotificationPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.POST_NOTIFICATIONS)
+                    != PackageManager.PERMISSION_GRANTED) {
+                ActivityCompat.requestPermissions(this,
+                        new String[]{android.Manifest.permission.POST_NOTIFICATIONS},
+                        NOTIFICATION_PERMISSION_REQUEST_CODE);
+            }
         }
     }
 
+    // Lifecycle methods
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (isInitialized) {
+            checkServiceStatus();
+        }
+    }
+
+    private void checkServiceStatus() {
+        isServiceRunning = isServiceRunning(BatteryLoggerService.class);
+        if (isServiceRunning) {
+            btnStopService.setText("Stop Service");
+            btnExport.setEnabled(false);
+            updateData();
+        } else {
+            btnStopService.setText("Start Service");
+            List<BatteryLog> logs = fileManager.readLogs();
+            btnExport.setEnabled(!logs.isEmpty());
+            if (logs.isEmpty()) {
+                clearAllData();
+            }
+        }
+    }
+
+    private boolean isServiceRunning(Class<?> serviceClass) {
+        ActivityManager manager = (ActivityManager) getSystemService(Context.ACTIVITY_SERVICE);
+        for (ActivityManager.RunningServiceInfo service : manager.getRunningServices(Integer.MAX_VALUE)) {
+            if (serviceClass.getName().equals(service.service.getClassName())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        if (handler != null) {
+            handler.removeCallbacksAndMessages(null);
+        }
+        if (statusHandler != null) {
+            statusHandler.removeCallbacks(statusUpdateRunnable);
+        }
+    }
+
+    // Permission callback methods
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+
+        if (requestCode == PERMISSION_REQUEST_CODE) {
+            if (checkStoragePermission()) {
+                // Initialize components if not already initialized
+                if (!isInitialized) {
+                    initializeComponents();
+                    isInitialized = true;
+                }
+                // Now proceed with export
+                if (performExport()) {
+                    exportChartImage();
+                    clearAllData();
+                    isServiceRunning = false;
+                    btnExport.setEnabled(false);
+                    btnStopService.setText("Start Service");
+                }
+            } else {
+                Toast.makeText(this, "Storage permission needed to export data", Toast.LENGTH_LONG).show();
+            }
+        }
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions,
+                                           @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+
+        if (requestCode == NOTIFICATION_PERMISSION_REQUEST_CODE) {
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                Toast.makeText(this, "Notification permission granted", Toast.LENGTH_SHORT).show();
+            }
+        }
+    }
 }
+
